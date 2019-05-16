@@ -31,7 +31,8 @@
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-std::string globalMode("mc_cosmic");
+//std::string globalMode("mc_cosmic");
+std::string globalMode("data");
 
 float p0_par1(0.f), p0_par2(0.f), p0_par3(0.f);
 float alpha_par1(0.f), alpha_par2(0.f), alpha_par3(0.f);
@@ -570,7 +571,9 @@ void SingleProbabilityCurve(TTree* tree, std::string name, int neutrinoMode, std
         {
             //Fixed through 1.0
             //TF1  *f1 = new TF1("f1", "0.5 + (((([1] + ([1] + [2])*(([1] + [2])/[2])^([2]/[1])))/(2*[1])) - 0.5) * (1 - exp(-[1] * x)) * exp(-[2] * x)", 0, histogramRange);
-            TF1  *f1 = new TF1("f1", "0.5 + (((2*[1]*[0]*(([1] + [2])/[2])^([2]/[1]) + 2*[2]*[0]*(([1] + [2])/[2])^([2]/[1]) - [1]*(([1] + [2])/[2])^([2]/[1]) - [2]*(([1] + [2])/[2])^([2]/[1]) + [1])/(2*[1])) - 0.5) * (1 - exp(-[1] * x)) * exp(-[2] * x)", 0, histogramRange);
+            //TF1  *f1 = new TF1("f1", "0.5 + (((2*[1]*[0]*(([1] + [2])/[2])^([2]/[1]) + 2*[2]*[0]*(([1] + [2])/[2])^([2]/[1]) - [1]*(([1] + [2])/[2])^([2]/[1]) - [2]*(([1] + [2])/[2])^([2]/[1]) + [1])/(2*[1])) - 0.5) * (1 - exp(-[1] * x)) * exp(-[2] * x)", 0, histogramRange);
+            //TF1  *f1 = new TF1("f1", "0.5 + ((([0] - 0.5) * (( ([1] + [2]) * ((([1] + [2])/[1])^([2]/[1]))  )/[2])) * (1 - exp(-[1] * x)) * (exp(-[2] * x)))", 0, histogramRange);
+            TF1  *f1 = new TF1("f1", "0.5 + ( ( ([0] - 0.5) * ( (  ([1] + [2]) * (( ([1] + [2])/([2]) )^([2]/[1]))  )/([1])  ) ) * ( 1 - exp(-[1] * x) ) * ( exp(-[2] * x) ) )", 0, histogramRange);
             f1->SetParName(0, "height");
             f1->SetParName(1, "alpha");
             f1->SetParName(2, "beta");
@@ -603,7 +606,8 @@ void SingleProbabilityCurve(TTree* tree, std::string name, int neutrinoMode, std
 
         if (p0_par1 != 0 && alpha_par1 != 0 && beta_par1 != 0)
         {
-        TF1  *f2 = new TF1("f2", "0.5 + (((2*[1]*[0]*(([1] + [2])/[2])^([2]/[1]) + 2*[2]*[0]*(([1] + [2])/[2])^([2]/[1]) - [1]*(([1] + [2])/[2])^([2]/[1]) - [2]*(([1] + [2])/[2])^([2]/[1]) + [1])/(2*[1])) - 0.5) * (1 - exp(-[1] * x)) * exp(-[2] * x)", 0, histogramRange);
+            //TF1  *f2 = new TF1("f2", "0.5 + (((2*[1]*[0]*(([1] + [2])/[2])^([2]/[1]) + 2*[2]*[0]*(([1] + [2])/[2])^([2]/[1]) - [1]*(([1] + [2])/[2])^([2]/[1]) - [2]*(([1] + [2])/[2])^([2]/[1]) + [1])/(2*[1])) - 0.5) * (1 - exp(-[1] * x)) * exp(-[2] * x)", 0, histogramRange);
+            TF1  *f2 = new TF1("f2", "0.5 + ((([0] - 0.5) * (( ([1] + [2]) * ((([1] + [2])/[2])^([2]/[1]))  )/[1])) * (1 - exp(-[1] * x)) * (exp(-[2] * x)))", 0, histogramRange);
             float N_mean(NLowerBound + ((NUpperBound - NLowerBound)/2)), chi_mean(chiSquaredMinLowerBound + ((chiSquaredMinUpperBound - chiSquaredMinLowerBound)/2));
             float p0(std::max(p0_par1 + p0_par3 * chi_mean + p0_par2 * N_mean, 0.5f)), alpha(std::max(alpha_par1  + alpha_par3 * chi_mean + alpha_par2 * N_mean, 0.1f)), beta(std::max(beta_par1 + beta_par3 * chi_mean + beta_par2 * N_mean, 0.01f));
 
@@ -1008,7 +1012,7 @@ void CreateParameterSurface(TTree* t1, std::vector<std::pair<float, float>> para
         graphTitle = ("#beta Parameter Surface (simple fit)");
 
     TF2 *f = new TF2("f",func,-1000,1000,-1000,1000,3);
-    f->SetParameters(1,1,1);
+    f->SetParameters(0.1,0.1,0.1);
     //f->SetMinimum(0.0);
 
     g2->Fit(f);
@@ -1213,11 +1217,13 @@ void Probability_Cosmic(void)
     SingleProbabilityCurve(t1, "all", 2, "MCDownwards", "UpDownDeltaChiSquaredPerHit", histogramRange, nBins, tailDefinition, singlePlotTitle, true);
     */
 
+    /*
     std::vector<float> fitParameters, fitErrors;
     bool simpleFit(true), constrainedFit(true);
     bool drawUnderlying(true), saveUnderlying(true);
     std::string fitPlotTitle("Fitted Probability Distribution For All Cosmics Events;|#Delta#chi^{2}/N| #equiv |#chi^{2}_{D}/N - #chi^{2}_{U}/N|;Downwards Probability P_{D}");
     SingleProbabilityCurve(t1, "all_fitted", 2, "MCDownwards", "UpDownDeltaChiSquaredPerHit", histogramRange, nBins, tailDefinition, true, fitParameters, fitErrors, false, 100, 200, false, 0.0, 1.0, simpleFit, constrainedFit, fitPlotTitle, drawUnderlying, saveUnderlying);
+    */
 
     /*
     std::string fitPlotTitle1("Fitted Probability Distribution For 0.0 #leq #chi^{2}_{min}/N #leq 1.0;|#Delta#chi^{2}/N| #equiv |#chi^{2}_{D}/N - #chi^{2}_{U}/N|;Downwards Probability P_{D}");
@@ -1258,7 +1264,7 @@ void Probability_Cosmic(void)
     std::string NPlotTitle("Downwards Probability P_{D} Distribution Variation with N;|#Delta#chi^{2}/N| #equiv |#chi^{2}_{D}/N - #chi^{2}_{U}/N|;Downwards Probability P_{D}");
     ProbabilityComparison(NCutValues, false, 0.0, 1.0, "N", t1, "N_comparison", 1, 0, "MCDownwards", "UpDownDeltaChiSquaredPerHit", histogramRange, newNBins, tailDefinition, "NumberHits", NPlotTitle);
 
-    std::vector<std::pair<float, float>> minChiCutValues = {std::pair<float, float>(0.0, 1.0), std::pair<float, float>(1.0, 2.0), std::pair<float, float>(2.0, 4.0), std::pair<float, float>(4.0, 1e6)};
+    std::vector<std::pair<float, float>> minChiCutValues = {std::pair<float, float>(0.0, 1.0), std::pair<float, float>(1.0, 2.0), std::pair<float, float>(2.0, 3.0), std::pair<float, float>(3.0, 1e6)};
     std::string minChiPlotTitle("Downwards Probability P_{D} Distribution Variation with #chi^{2}_{min}/N (Best fit #chi^{2}/N in event);|#Delta#chi^{2}/N| #equiv |#chi^{2}_{D}/N - #chi^{2}_{U}/N|;Downwards Probability P_{D}");
     ProbabilityComparison(minChiCutValues, false, 0.0, 1.0, "#chi^{2}_{min}/N", t1, "minChi_comparison", 1, 0, "MCDownwards", "UpDownDeltaChiSquaredPerHit", histogramRange, newNBins, tailDefinition, "MinChiSquaredPerHit", minChiPlotTitle);
 
@@ -1285,8 +1291,7 @@ void Probability_Cosmic(void)
 
     //Parameter curve/surface cut values
     std::vector<std::pair<float, float>> parameterNCutValues = {std::pair<float, float>(0, 100), std::pair<float, float>(100, 200), std::pair<float, float>(200, 400)};
-    std::vector<std::pair<float, float>> parameterChiCutValues = {std::pair<float, float>(0.0, 1.0), std::pair<float, float>(1.0, 2.0), std::pair<float, float>(2.0, 4.0)};
-
+    std::vector<std::pair<float, float>> parameterChiCutValues = {std::pair<float, float>(0.0, 1.0), std::pair<float, float>(1.0, 2.0), std::pair<float, float>(2.0, 3.0)};
 
     /*
     //Parameter curves
@@ -1301,10 +1306,12 @@ void Probability_Cosmic(void)
 
     //Parameter surfaces
     
+    //without surfaces
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 0, histogramRange, newNBins, tailDefinition, false, false, "par0", false);
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 1, histogramRange, newNBins, tailDefinition, false, false, "par1", false);
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 2, histogramRange, newNBins, tailDefinition, false, false, "par2", false);
 
+    //with surfaces
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 0, histogramRange, newNBins, tailDefinition, false, true, "par0", false);
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 1, histogramRange, newNBins, tailDefinition, false, true, "par1", false);
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 2, histogramRange, newNBins, tailDefinition, false, true, "par2", false);
@@ -1313,6 +1320,7 @@ void Probability_Cosmic(void)
     //CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 1, histogramRange, newNBins, tailDefinition, true, false, "par1_simple", false);
     //CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 2, histogramRange, newNBins, tailDefinition, true, false, "par2_simple", false);
 
+    //with underlying probability curves
     CreateParameterSurface(t1, parameterNCutValues, parameterChiCutValues, 2, histogramRange, newNBins, tailDefinition, false, false, "par2", true);
 
     /*
