@@ -8,7 +8,7 @@
 main ()
 {
     unsigned int nNonNeutrons(0), nMuons(1), nElectrons(0), nProtons(1), nPiPlus(0), nPiMinus(0), nPhotons(3), nKaonPlus(0), nKaonMinus(0);
-    int nuNuanceCode(5010);
+    int nuNuanceCode(5110);
 
     //logic to deconstruct new nuance codes >= 5000 (if there are kaons we ignore this bit: kaons are not included in the interactionType enum anyway)
     if (nuNuanceCode >= 5000 && nKaonPlus == 0 && nKaonMinus == 0)

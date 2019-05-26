@@ -30,13 +30,13 @@
 TFile *f1 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/0.root");
 TTree *t1 = (TTree*)f1->Get("EventSelection");
 
-TFile *f2 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/1.root");
+TFile *f2 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/1.root");
 TTree *t2 = (TTree*)f2->Get("EventSelection");
 
-TFile *f3 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/2.root");
+TFile *f3 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/2.root");
 TTree *t3 = (TTree*)f3->Get("EventSelection");
 
-TFile *f4 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/3.root");
+TFile *f4 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/3.root");
 TTree *t4 = (TTree*)f4->Get("EventSelection");
 
 TFile *f5 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/fullreco_bdtresponse.root");
@@ -74,7 +74,24 @@ bool PassesPidCut(int targetMultiplicity, float shortestPfoProtonChiSquared, flo
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool containedEventsOnly, std::string containmentDefinition, bool applyPidCut, std::vector<std::pair<std::string, float>> &bdtVector)
+void FormattedPrintout(int printoutWidth, std::string title, int denominator1, int selectedCount, int selectedCorrectCount, int denominator2, int totalCount, int totalCorrectCount)
+{
+    title += ": ";
+    std::stringstream selectedStream, totalStream;
+    selectedStream << std::fixed << setprecision(2) << selectedCount << " [" << selectedCorrectCount << "] (" << 100.0 * static_cast<float>(selectedCount)/denominator1 << "%)";
+    totalStream << std::fixed << setprecision(2) << totalCount << " [" << totalCorrectCount << "] (" << 100.0 * static_cast<float>(totalCount)/denominator2 << "%)";
+
+    std::cout << setw(printoutWidth) << left 
+              << title 
+              << setw(printoutWidth) << left
+              << selectedStream.str() 
+              << setw(printoutWidth) << left
+              << totalStream.str() << std::endl;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool containedEventsOnly, std::string containmentDefinition, bool applyPidCut, std::vector<std::pair<std::string, float>> &bdtVector, std::pair<bool, int> filterEventClass)
 {
     //containedEventsOnly: whether to only use events contained within the (bipartite) containment volume
     //bdtVector consists of std::pair objects of std::string bdtBranchName and float bdtCut
@@ -86,6 +103,8 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
 
     int nuRecoContained;
     int interactionType;
+    int trueInteractionType;
+    int modifiedInteractionType;
     int nuanceCode;
     int particleMultiplicity;
     int nCosmicRays;
@@ -98,7 +117,8 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
     float bdtResponse[5];
 
     pTree->SetBranchAddress(containmentDefinition.c_str(), &nuRecoContained);
-    pTree->SetBranchAddress("ModifiedInteractionType", &interactionType);
+    pTree->SetBranchAddress("TrueInteractionType", &trueInteractionType);
+    pTree->SetBranchAddress("ModifiedInteractionType", &modifiedInteractionType);
     pTree->SetBranchAddress("NeutrinoNuanceCode", &nuanceCode);
     pTree->SetBranchAddress("RecoNeutrinoNumberAssociatedParticles", &particleMultiplicity);
     pTree->SetBranchAddress("RecoNeutrinoNumberCosmicRays", &nCosmicRays);
@@ -112,31 +132,55 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
     pTree->SetBranchAddress("FileIdentifier", &fileIdentifier);
     pTree->SetBranchAddress("EventNumber", &eventNumber);
 
+
+    std::cout << "******************************************************************************************" << std::endl;
+
+    if (filterEventClass.first == true)
+        std::cout << ">>> Filtering to modified interaction type " << ToString(static_cast<InteractionType>(filterEventClass.second)) << std::endl;
+
+    int totalCount(0), totalCorrectCount(0), totalSignalCount(0), totalCorrectSignalCount(0);
+
     //Fill total count maps
     for (int i = 0; i < pTree->GetEntries(); i++)
     {
         pTree->GetEntry(i);
 
-        //if (nuanceCode >= 5000)
-        //    std::cout << ToString(static_cast<InteractionType>(interactionType)) << std::endl;
+        if (filterEventClass.first == true)
+            interactionType = trueInteractionType;
+        else 
+            interactionType = modifiedInteractionType;
 
         if (containedEventsOnly && nuRecoContained == 0)
             continue;
 
+        if (filterEventClass.first == true && modifiedInteractionType != filterEventClass.second)
+            continue;
+
         std::string interactionTypeString(ToString(static_cast<InteractionType>(interactionType)));
         std::string nCosmicRaysString(std::to_string(nCosmicRays)+"_CR");
-    
+
         //exclude _CR suffix if  COSMIC_RAY and only add it if nu reco is contaminated 
-        if (interactionType != 177 && nCosmicRays != 0 && nCosmicRays != particleMultiplicity)
+        if (interactionType != 181 && nCosmicRays != 0 && nCosmicRays != particleMultiplicity)
             interactionTypeString += "_" + nCosmicRaysString;
 
+        //fill counts
+        ++totalCount;
+        if (correctlyReconstructed == 1) ++totalCorrectCount;
+
+        if (signal == 1) 
+        {
+            ++totalSignalCount;
+            if (correctlyReconstructed == 1) ++totalCorrectSignalCount;
+        }
+
+        //fill maps
         totalInteractionTypeCountMap[interactionTypeString]++;
-        
-        if (correctlyReconstructed == 1)
-            totalCorrectInteractionTypeCountMap[interactionTypeString]++;
+        if (correctlyReconstructed == 1) totalCorrectInteractionTypeCountMap[interactionTypeString]++;
     }
 
-    float percentageCutoff(2.0);
+    float percentageCutoff(1.0);
+    std::stringstream percentageStream;
+    percentageStream << std::fixed << setprecision(1) << percentageCutoff; 
 
     //Create a vector of BDTs for which the response branch can actually be found
     std::vector<std::pair<std::string, float>> validBdtVector;    
@@ -165,19 +209,28 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
     std::cout << endl;
 
     std::cout << "PID: " << applyPidCut << std::endl;
+    std::cout << "******************************************************************************************" << std::endl;
 
     //Fill eventTypeCount map 
-    int signalCount(0), correctSignalCount(0); 
+    int selectedCount(0), correctSelectedCount(0), selectedSignalCount(0), correctSelectedSignalCount(0);
     int variables[5];
 
     for (int i = 0; i < pTree->GetEntries(); i++)
     {
         pTree->GetEntry(i);
 
+        if (filterEventClass.first == true)
+            interactionType = trueInteractionType;
+        else 
+            interactionType = modifiedInteractionType;
+
         if (particleMultiplicity != targetMultiplicity)
             continue;
 
         if (containedEventsOnly && nuRecoContained == 0)
+            continue;
+
+        if (filterEventClass.first == true && modifiedInteractionType != filterEventClass.second)
             continue;
 
         if (applyPidCut && shortestPfoProtonChiSquared >= 20.0)
@@ -198,66 +251,29 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
         std::string nCosmicRaysString(std::to_string(nCosmicRays)+"_CR");
     
         //exclude _CR suffix if  COSMIC_RAY and only add it if nu reco is contaminated 
-        if (interactionType != 177 && nCosmicRays != 0 && nCosmicRays != particleMultiplicity)
+        if (interactionType != 181 && nCosmicRays != 0 && nCosmicRays != particleMultiplicity)
             interactionTypeString += "_" + nCosmicRaysString;
 
-        if (signal == 1)
-            ++signalCount;
+        //fill counts
+        ++selectedCount;
+        if (correctlyReconstructed == 1) ++correctSelectedCount;
 
-        if (signal == 1 && correctlyReconstructed == 1)
-            ++correctSignalCount;
+        if (signal == 1) 
+        {
+            ++selectedSignalCount;
+            if (correctlyReconstructed == 1) ++correctSelectedSignalCount;
+        }
 
+        //fill maps
         eventTypeCount[interactionTypeString]++;
         
         if (correctlyReconstructed == 1)
             correctEventTypeCount[interactionTypeString]++;
     }
 
-    int selectedCount(0), correctSelectedCount(0), selectedSignalCount(0), correctSelectedSignalCount(0);
-    int totalCount(0), totalCorrectCount(0), totalSignalCount(0), totalCorrectSignalCount(0);
-
-    std::string signalEnding("_MU");
-
-    if (targetMultiplicity == 2) 
-        signalEnding = "_MU_P";
-
-    for (const auto &pair : eventTypeCount)
-    {
-        selectedCount += pair.second;
-
-        //check if interaction type ends with signalEnding
-        if (std::equal(signalEnding.rbegin(), signalEnding.rend(), pair.first.rbegin()))
-        {
-            selectedSignalCount += pair.second;
-            correctSelectedSignalCount += (correctEventTypeCount.count(pair.first) != 0 ? correctEventTypeCount.at(pair.first) : 0);
-        }
-    }
-
-    for (const auto &pair : correctEventTypeCount)
-        correctSelectedCount += pair.second;
-
-    for (const auto &pair : totalInteractionTypeCountMap)
-    {
-        totalCount += pair.second;
-        
-        //check if interaction type ends with signalEnding
-        if (std::equal(signalEnding.rbegin(), signalEnding.rend(), pair.first.rbegin()))
-        {
-            totalSignalCount += pair.second;
-            totalCorrectSignalCount += (totalCorrectInteractionTypeCountMap.count(pair.first) != 0 ? totalCorrectInteractionTypeCountMap.at(pair.first) : 0);
-        }
-    }
-
-    for (const auto &pair : totalCorrectInteractionTypeCountMap)
-        totalCorrectCount += pair.second;
-
     std::cout << "------------------------------------------------------------------------------------------" << std::endl;
 
-    //sort eventTypeCount by number of entries and store in new set interactionTypeSet
-    //typedef std::function<bool(std::pair<std::string, int>, std::pair<std::string, int>)> Comparator;
-    //Comparator compFunctor = [](std::pair<std::string, int> elem1 ,std::pair<std::string, int> elem2) { return elem1.second > elem2.second; };
-    //std::set<std::pair<std::string, int>, Comparator> interactionTypeSet(eventTypeCount.begin(), eventTypeCount.end(), compFunctor);
-
+    //sort map entries by count by filling sorting vector
     std::vector<std::pair<std::string, int>> pairs;
 
     for (const auto &pair : eventTypeCount)
@@ -274,12 +290,21 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
               << setw(printoutWidth) << left
               << "Total Events" << std::endl;
 
+    std::cout << "------------------------------------------------------------------------------------------" << std::endl;
+
     int otherCount(0), otherCorrectCount(0), otherTotalCount(0), otherTotalCorrectCount(0);
  
     for (std::pair<std::string, int> pair : pairs)
     {
         if (100.0 * (float)pair.second/selectedCount >= percentageCutoff)
         {
+            std::string title(pair.first + " (" + std::to_string(FromString(pair.first)) + ")");
+            int correctChannelCount(correctEventTypeCount.count(pair.first) != 0 ? correctEventTypeCount.at(pair.first) : 0);
+            int totalChannelCount(totalInteractionTypeCountMap.at(pair.first) != 0 ? totalInteractionTypeCountMap.at(pair.first) : 0);
+            int totalCorrectChannelCount(totalCorrectInteractionTypeCountMap.count(pair.first) != 0 ? totalCorrectInteractionTypeCountMap.at(pair.first) : 0);
+            FormattedPrintout(printoutWidth, title, selectedCount, pair.second, correctChannelCount, totalCount, totalChannelCount, totalCorrectChannelCount);
+
+            /*
             std::string interactionTypeCounts(pair.first + " (" + std::to_string(FromString(pair.first)) + ")");
             std::string selectedEvents(std::to_string(pair.second) + " [" + std::to_string(correctEventTypeCount.count(pair.first) != 0 ? correctEventTypeCount.at(pair.first) : 0) + "] (" + std::to_string(100.0 * (float)pair.second/selectedCount) + "%)");
             std::string totalEvents(std::to_string(totalInteractionTypeCountMap.at(pair.first) != 0 ? totalInteractionTypeCountMap.at(pair.first) : 0) + " [" + std::to_string(totalCorrectInteractionTypeCountMap.count(pair.first) != 0 ? totalCorrectInteractionTypeCountMap.at(pair.first) : 0) + "]");
@@ -293,6 +318,7 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
                       << selectedEventsStream.str()
                       << setw(printoutWidth) << left
                       << totalEvents << std::endl;
+            */
         }
         else
         {
@@ -303,6 +329,12 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
         }
     }
 
+    FormattedPrintout(printoutWidth, "OTHER (< " + percentageStream.str() + "%)", selectedCount, otherCount, otherCorrectCount, totalCount, otherTotalCount, otherTotalCorrectCount);
+    std::cout << ".........................................................................................." << std::endl;
+    FormattedPrintout(printoutWidth, "SIGNAL", selectedCount, selectedSignalCount, correctSelectedSignalCount, totalCount, totalSignalCount, totalCorrectSignalCount);
+    FormattedPrintout(printoutWidth, "TOTAL", selectedCount,  selectedCount, correctSelectedCount, totalCount, totalCount, totalCorrectCount);
+
+    /*
     std::string otherInteractionTypeCounts("OTHER (<" + std::to_string(percentageCutoff) + "%)"); 
     std::string otherSelectedEvents(std::to_string(otherCount) + " [" + std::to_string(otherCorrectCount) + "] (" + std::to_string(100.0 * (float)otherCount/selectedCount) + "%)");
     std::string otherTotalEvents(std::to_string(otherTotalCount) + " [" + std::to_string(otherTotalCorrectCount) + "]");
@@ -318,11 +350,11 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
               << otherTotalEvents << std::endl;
 
     std::cout << ".........................................................................................." << std::endl;
-    //std::cout << "SIGNAL: " << signalCount << " [" << correctSignalCount << "]" << std::endl;
+    //std::cout << "SIGNAL: " << selectedSignalCount << " [" << correctSelectedSignalCount << "]" << std::endl;
 
     std::string signalInteractionTypeCounts("SIGNAL: "); 
     std::stringstream signalSelectedEventsStream;
-    signalSelectedEventsStream << std::fixed << setprecision(2) << signalCount << " (" << 100 * static_cast<float>(signalCount)/selectedCount << "%) [" << correctSignalCount << "]"; 
+    signalSelectedEventsStream << std::fixed << setprecision(2) << selectedSignalCount << " (" << 100 * static_cast<float>(selectedSignalCount)/selectedCount << "%) [" << correctSelectedSignalCount << "]"; 
     std::stringstream signalTotalEventsStream;
     signalTotalEventsStream << std::fixed << setprecision(2) << totalSignalCount << " (" << 100 * static_cast<float>(totalSignalCount)/totalCount << "%) [" << totalCorrectSignalCount << "]"; 
 
@@ -343,6 +375,7 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
               << totalSelectedEvents 
               << setw(printoutWidth) << left
               << totalTotalEvents << std::endl;
+    */
 
     std::cout << ".........................................................................................." << std::endl;
     std::cout << "PURITY: " << correctSelectedSignalCount << "/" << selectedCount << " (" << 100.0 * (float)correctSelectedSignalCount/selectedCount<< "%)" << std::endl;
@@ -356,94 +389,10 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void SubTableAnalysis(TTree* pTree, int targetMultiplicity, int targetModifiedInteractionType, bool onlyContained)
-{
-    std::map<std::string, int> eventTypeCount;
-
-    int nuRecoContained;
-    int interactionType;
-    int modifiedInteractionType;
-    int particleMultiplicity; 
-    int nCosmicRays;
-    int taggingFailure;
-
-    pTree->SetBranchAddress("NuRecoContained", &nuRecoContained);
-    pTree->SetBranchAddress("TrueInteractionType", &interactionType);
-    pTree->SetBranchAddress("ModifiedInteractionType", &modifiedInteractionType);
-    pTree->SetBranchAddress("RecoNeutrinoNumberAssociatedParticles", &particleMultiplicity);
-    pTree->SetBranchAddress("RecoNeutrinoNumberCosmicRays", &nCosmicRays);
-    pTree->SetBranchAddress("TaggingFailure", &taggingFailure);
-
-    int nCosmicRayCategory(0), nTaggingFailure(0);
-
-    for (int i = 0; i < pTree->GetEntries(); i++)
-    {
-        pTree->GetEntry(i);
-
-        if ((particleMultiplicity != targetMultiplicity) || (onlyContained && nuRecoContained != 1) || (modifiedInteractionType != targetModifiedInteractionType))
-            continue;
-
-        std::string interactionTypeString(ToString(static_cast<InteractionType>(interactionType)));
-
-        if (interactionType != 179 && nCosmicRays == targetMultiplicity)
-        {
-            ++nCosmicRayCategory;
-            if (taggingFailure == 1) ++nTaggingFailure;
-            eventTypeCount[interactionTypeString]++;
-        }
-    }
-
-    std::cout << "nCosmicRayCategory: " << nCosmicRayCategory << std::endl;
-    std::cout << "nTaggingFailure: " << nTaggingFailure << std::endl;
-
-    int totalCount(0), otherCount(0);
-
-    for (const auto &pair : eventTypeCount)
-        totalCount += pair.second;
-
-    std::cout << "---------------------------------------------" << std::endl;
-
-    typedef std::function<bool(std::pair<std::string, int>, std::pair<std::string, int>)> Comparator;
-    Comparator compFunctor = [](std::pair<std::string, int> elem1 ,std::pair<std::string, int> elem2) { return elem1.second > elem2.second; };
-    std::set<std::pair<std::string, int>, Comparator> interactionTypeSet(eventTypeCount.begin(), eventTypeCount.end(), compFunctor);
- 
-    for (std::pair<std::string, int> pair : interactionTypeSet)
-    {
-        if (100.0 * (float)pair.second/totalCount > 2)
-            std::cout << pair.first << " (" << FromString(pair.first) << ") : " << pair.second << " (" << 100.0 * (float)pair.second/totalCount << "%)" << std::endl;
-        else
-            otherCount += pair.second; 
-    }
-
-    std::cout << "............................................." << std::endl;
-    std::cout << "OTHER: " << otherCount << " (" << 100.0 * (float)otherCount/totalCount << "%)" << std::endl;
-    std::cout << "TOTAL: " << totalCount << " (100%)" << std::endl;
-    std::cout << "---------------------------------------------" << std::endl;
-    std::cout << std::setprecision(6);
-
-
-    //Number of nu true hits in cosmic ray category
-    TH1F* pTrueNuNumberHitsHistogram = new TH1F("pTrueNuNumberHitsHistogram", "", 100, 0, 100); 
-    TH1F* pTrueNuNumberHitsInPFOsHistogram = new TH1F("pTrueNuNumberHitsInPFOsHistogram", "", 100, 0, 100); 
-    TH1F* pTrueNuNumberHitsInRecoNuHistogram = new TH1F("pTrueNuNumberHitsInRecoNuHistogram", "", 100, 0, 100); 
-
-    std::vector<std::pair<std::string, int>> filterValues = {std::make_pair("RecoNeutrinoNumberAssociatedParticles", targetMultiplicity), std::make_pair("RecoNeutrinoNumberCosmicRays", targetMultiplicity), std::make_pair("TaggingFailure", 0)};
-
-    CreateFilteredHistogram(pTree, pTrueNuNumberHitsHistogram, "TrueNeutrinoNumberInducedHits", filterValues);
-    CreateFilteredHistogram(pTree, pTrueNuNumberHitsInPFOsHistogram, "PfoAllTrueNeutrinoHits", filterValues);
-    CreateFilteredHistogram(pTree, pTrueNuNumberHitsInRecoNuHistogram, "RecoNuAllTrueNeutrinoHits", filterValues);
-
-    //Draw histograms
-    std::vector<TH1F*> histogramVector = {pTrueNuNumberHitsHistogram, pTrueNuNumberHitsInPFOsHistogram, pTrueNuNumberHitsInRecoNuHistogram}; 
-    std::vector<EColor> colourVector = {kRed, kBlue, kMagenta};
-    std::vector<std::string> legendVector = {"Number of #nu_{true} hits in Event", "Number of #nu_{true} hits in PFOs", "Number of #nu_{true} hits in #nu_{reco}"};
-    Draw(histogramVector, colourVector, legendVector, false, true, "true_nu_hits_distributions_CR_N_" + std::to_string(targetMultiplicity), "Number of #nu_{true} hits", "Number of Entries", "Distributions of number of #nu_{true} hits (N=" + std::to_string(targetMultiplicity) + " COSMIC_RAY Category)");
-}
-
-//------------------------------------------------------------------------------------------------------------------------------------------
-
 void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyContained)
 {
+    std::cout << "---------------------------------------------" << std::endl;
+    std::cout << "               OTHER_INTERACTION             " << std::endl;
     std::cout << "---------------------------------------------" << std::endl;
 
     int nuRecoContained;
@@ -453,6 +402,9 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
     int nCosmicRays; 
     int trueNumberMuons;
     int trueNumberProtons;
+    int trueNumberPhotons;
+    int signal;
+    int correctlyReconstructed;
 
     pTree->SetBranchAddress("NuRecoContained", &nuRecoContained);
     pTree->SetBranchAddress("NeutrinoNuanceCode", &nuanceCode);
@@ -461,9 +413,14 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
     pTree->SetBranchAddress("RecoNeutrinoNumberCosmicRays", &nCosmicRays);
     pTree->SetBranchAddress("NumberTrueProtons", &trueNumberProtons);
     pTree->SetBranchAddress("NumberTrueMuons", &trueNumberMuons);
+    pTree->SetBranchAddress("NumberTruePhotons", &trueNumberPhotons);
+    pTree->SetBranchAddress("Signal", &signal);
+    pTree->SetBranchAddress("CorrectlyReconstructed", &correctlyReconstructed);
 
     std::map<int, int> nuanceCodeCount, trueMuonCount, trueProtonCount;
+    std::map<int, std::string> nuanceCodeNameMapping = {{1091, "CCDIS"}, {1092, "NCDIS"}, {5001, "NCRES"}, {5101, "CCRES"}, {1002, "NCQEL"}, {1004, "CCRES_N_PIZERO"}, {1005, "CCRES_N_PIPLUS"}, {1098, "NEUTRINO_E_ELASTIC"}};
     int totalCount(0), nSingleMuonNoProton(0), nSingleMuonSingleProton(0);
+    int signalCount(0), correctSignalCount(0);
 
     for (int i = 0; i < pTree->GetEntries(); i++) 
     {    
@@ -472,11 +429,24 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
         std::string interactionTypeString(ToString(static_cast<InteractionType>(interactionType)));
         std::string nCosmicRaysString(std::to_string(nCosmicRays)+"_CR");
     
-        if (interactionType != 177 && interactionType != 179 && nCosmicRays != 0)
+        if (interactionType != 181 && interactionType != 183 && nCosmicRays != 0)
             interactionTypeString += "_" + nCosmicRaysString;
 
         if (particleMultiplicity != targetMultiplicity || interactionTypeString != "OTHER_INTERACTION" || (onlyContained && nuRecoContained != 1)) 
             continue;
+
+        /*
+        if (nuanceCode == 5001 || nuanceCode == 5101)
+        {
+            std::cout << "nuanceCode: " << nuanceCode << std::endl;
+            std::cout << "Muons: " << trueNumberMuons << std::endl;
+            std::cout << "Protons: " << trueNumberProtons << std::endl;
+            std::cout << "Photons: " << trueNumberPhotons << std::endl;
+        }
+        */
+
+        if (signal == 1) ++signalCount;
+        if (signal == 1 && correctlyReconstructed == 1) ++correctSignalCount;
 
         nuanceCodeCount[nuanceCode]++;
 
@@ -492,33 +462,42 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
         ++totalCount;
     }    
 
-    typedef std::function<bool(std::pair<int, int>, std::pair<int, int>)> Comparator;
-    Comparator compFunctor = [](std::pair<int, int> elem1 ,std::pair<int, int> elem2) { return elem1.second > elem2.second; };
-    std::set<std::pair<int, int>, Comparator> interactionTypeSet(nuanceCodeCount.begin(), nuanceCodeCount.end(), compFunctor);
-    std::set<std::pair<int, int>, Comparator> muonSet(trueMuonCount.begin(), trueMuonCount.end(), compFunctor);
-    std::set<std::pair<int, int>, Comparator> protonSet(trueProtonCount.begin(), trueProtonCount.end(), compFunctor);
+    std::vector<std::pair<int, int>> pairs;
 
-    for (std::pair<int, int> pair : interactionTypeSet)
-        std::cout << "Nuance " << pair.first << ": " << pair.second << " (" << 100.0 * (float)pair.second/totalCount << "%)" << std::endl;
+    for (const auto &pair : nuanceCodeCount)
+        pairs.push_back(pair);
 
-    std::cout << "Total: " << totalCount << std::endl;
-    std::cout << "---------------------------------------------" << std::endl;
+    sort(pairs.begin(), pairs.end(), [=](std::pair<int, int>& a, std::pair<int, int>& b) {return a.second > b.second;});
 
-    std::cout << "Single muon no proton count: " << nSingleMuonNoProton << std::endl;
-    std::cout << "Single muon single proton count: " << nSingleMuonSingleProton << std::endl;
-    std::cout << "---------------------------------------------" << std::endl;
+    int total(0);
 
-    /*
-    for (std::pair<int, int> pair : muonSet)
-        std::cout << "Muon count " << pair.first << ": " << pair.second << " (" << 100.0 * (float)pair.second/totalCount << "%)" << std::endl;
+    for (std::pair<int, int> pair : pairs)
+    {
+        std::string nuanceCodeName(nuanceCodeNameMapping.find(pair.first) != nuanceCodeNameMapping.end() ? nuanceCodeNameMapping.at(pair.first) : "UNKNOWN");
+        std::cout << "Nuance " << pair.first << " " << nuanceCodeName  << ": " << pair.second << " (" << std::fixed << setprecision(2) << 100.0 * (float)pair.second/totalCount << "%)" << std::endl;
+        ++total;
+    }
 
     std::cout << "---------------------------------------------" << std::endl;
-
-    for (std::pair<int, int> pair : protonSet)
-        std::cout << "Proton count " << pair.first << ": " << pair.second << " (" << 100.0 * (float)pair.second/totalCount << "%)" << std::endl;
-
+    std::cout << "TOTAL: " << total << " (100%)" << std::endl;
+    std::cout << "SIGNAL: " << signalCount << " (" << 100.0 * (float)signalCount/totalCount << "%)" << std::endl;
+    std::cout << "CORRECT SIGNAL: " << correctSignalCount << " (" << 100.0 * (float)correctSignalCount/totalCount << "%)" << std::endl;
     std::cout << "---------------------------------------------" << std::endl;
-    */
+}
+
+//------------------------------------------------------------------------------------------------------------------------------------------
+
+void NoReconstructableAnalysis(TTree* pTree, int targetMultiplicity, bool onlyContained)
+{
+    //Energy distribution no_reco
+    std::vector<std::pair<std::string, int>> filterValues = {std::make_pair("ModifiedInteractionType", 182), std::make_pair("RecoNeutrinoNumberAssociatedParticles", targetMultiplicity), std::make_pair("NuRecoConatained", onlyContained)};
+
+    TH1F *pNoReconstructableEnergyDistribution = new TH1F("pNoReconstructableEnergyDistribution","", 100, 0.0, 500.0);
+    CreateFilteredHistogram(t1, pNoReconstructableEnergyDistribution, "TrueNeutrinoEnergy", filterValues, "float")
+
+    //number of neutrons
+    TH1F *pNoReconstructableNumberNeutrons = new TH1F("pNoReconstructableNumberNeutrons","", 6, 0, 5);
+    CreateFilteredHistogram(t1, pNoReconstructableNumberNeutrons, "TrueNumberNeutrons", filterValues, "int")
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -528,16 +507,16 @@ void CompareCheatingConfigurations(int targetMultiplicity, bool containedOnly)
     std::vector<std::pair<std::string, float>> emptyBdtVector = {};
 
     std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t1, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector);
+    CreateInteractionTypeTable(t1, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 
     std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (CHEATING: Neutrino ID) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t2, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector);
+    CreateInteractionTypeTable(t2, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 
     std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (CHEATING: Tagging, Neutrino ID) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t3, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector);
+    CreateInteractionTypeTable(t3, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 
     std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (CHEATING: Slicing, Tagging, Neutrino ID) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t4, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector);
+    CreateInteractionTypeTable(t4, targetMultiplicity, containedOnly, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -547,12 +526,12 @@ void CompareContainmentDefinitions(TTree* pTree, int targetMultiplicity, std::ve
     std::vector<std::pair<std::string, float>> emptyBdtVector = {};
 
     //Table without containment cut for reference
-    CreateInteractionTypeTable(pTree, targetMultiplicity, false, "NuRecoContained", false, emptyBdtVector);
+    CreateInteractionTypeTable(pTree, targetMultiplicity, false, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 
     for (std::string &containmentDefinition : containmentDefinitions)
     {
         std::cout << "DEFINITION: " << containmentDefinition << std::endl;
-        CreateInteractionTypeTable(pTree, targetMultiplicity, true, containmentDefinition, false, emptyBdtVector);
+        CreateInteractionTypeTable(pTree, targetMultiplicity, true, containmentDefinition, false, emptyBdtVector, std::make_pair(false, 181));
     }
 }
 
@@ -565,50 +544,13 @@ void InteractionTypeTablesFinal(void)
     //std::vector<std::string> containmentDefinitions = {"NuRecoContained", "NuRecoEndpointsContained", "NuRecoVertexContained"};
     //CompareContainmentDefinitions(t1, targetMultiplicity, containmentDefinitions);
     
-    //OtherInteractionAnalysis(t1, targetMultiplicity, true);
+    OtherInteractionAnalysis(t1, targetMultiplicity, true);
+    //NoReconstructableAnalysis(t1, targetMultiplicity, true);
 
-    //CompareCheatingConfigurations(targetMultiplicity, true);
-
-    //SubTableAnalysis(t2, targetMultiplicity, 177, true);
+    CompareCheatingConfigurations(targetMultiplicity, true);
 
     std::vector<std::pair<std::string, float>> emptyBdtVector = {};
-    CreateInteractionTypeTable(t1, targetMultiplicity, true, "NuRecoContained", false, emptyBdtVector);
-
-    /*
-    std::vector<std::pair<std::string, float>> bdtVector0 = {};
-    std::vector<std::pair<std::string, float>> bdtVector1 = {std::make_pair("BDT_PID_precut_N2", -0.1)};
-    //std::vector<std::pair<std::string, float>> bdtVector1 = {std::make_pair("BDT_N2_Contained_CleanedVariables", -0.1)};
-    std::vector<std::pair<std::string, float>> bdtVector2 = {std::make_pair("BDT_N2_Contained_CleanedVariables", -0.01)};
-
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, true, bdtVector0);
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, true, bdtVector1);
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, false, bdtVector2);
-    */
-
-    /*
-    std::vector<std::pair<std::string, float>> emptyBdtVector = {};
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, false, emptyBdtVector);
-
-    std::vector<std::pair<std::string, float>> bdtVector0 = {std::make_pair("TMVA_BDT_AllVariables_N2_Contained", -0.05)};
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, false, bdtVector0);
-
-    std::vector<std::pair<std::string, float>> bdtVector1 = {std::make_pair("TMVA_BDT_AllVariables_N2_Contained", -0.05)};
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, true, bdtVector1);
-    */
-
-    /*
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    std::vector<std::pair<std::string, float>> bdtVector0 = {std::make_pair("TMVA_BDT_AllVariables_N1_Contained", -0.05)};
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, bdtVector0);
-
-    std::cout << "Reconstructed neutrino with " << targetMultiplicity << " particle(s) (FULL RECO) interaction type table:" << std::endl;
-    std::vector<std::pair<std::string, float>> bdtVector1 = {std::make_pair("TMVA_BDT_NoDirection_N1_Contained", -0.05)};
-    CreateInteractionTypeTable(t5, targetMultiplicity, true, bdtVector1);
-    */
+    CreateInteractionTypeTable(t1, targetMultiplicity, true, "NuRecoContained", false, emptyBdtVector, std::make_pair(true, 181));
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
