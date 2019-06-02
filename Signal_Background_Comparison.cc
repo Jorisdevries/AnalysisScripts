@@ -26,7 +26,7 @@
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-TFile *f1 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/fullreco_bdtresponse.root");
+TFile *f1 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection_III/0.root");
 TTree *t1 = (TTree*)f1->Get("EventSelection");
 
 TFile *f2 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/1.root");

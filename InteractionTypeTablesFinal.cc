@@ -27,16 +27,16 @@
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-TFile *f1 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/0.root");
+TFile *f1 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection_II/0.root");
 TTree *t1 = (TTree*)f1->Get("EventSelection");
 
-TFile *f2 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/1.root");
+TFile *f2 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection_II/1.root");
 TTree *t2 = (TTree*)f2->Get("EventSelection");
 
-TFile *f3 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/2.root");
+TFile *f3 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection_II/2.root");
 TTree *t3 = (TTree*)f3->Get("EventSelection");
 
-TFile *f4 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection/3.root");
+TFile *f4 = TFile::Open("/usera/jjd49/pandora_direction/Scripts/roots/eventselection_II/3.root");
 TTree *t4 = (TTree*)f4->Get("EventSelection");
 
 TFile *f5 = TFile::Open("/usera/jjd49/pandora_direction/CondorUtilities/saved_results/event_selection/fullreco_bdtresponse.root");
@@ -109,6 +109,8 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
     int particleMultiplicity;
     int nCosmicRays;
     int signal;
+    int n1_signal;
+    int n2_signal;
     int correctlyReconstructed;
     float longestPfoProtonChiSquared; 
     float shortestPfoProtonChiSquared; 
@@ -127,7 +129,8 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
     if (targetMultiplicity > 1)
         pTree->SetBranchAddress("ShortestPfoMinChiSquaredPerHit3D", &shortestPfoProtonChiSquared);
 
-    pTree->SetBranchAddress("Signal", &signal);
+    pTree->SetBranchAddress("N1_Signal", &n1_signal);
+    pTree->SetBranchAddress("N2_Signal", &n2_signal);
     pTree->SetBranchAddress("CorrectlyReconstructed", &correctlyReconstructed);
     pTree->SetBranchAddress("FileIdentifier", &fileIdentifier);
     pTree->SetBranchAddress("EventNumber", &eventNumber);
@@ -149,6 +152,11 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
             interactionType = trueInteractionType;
         else 
             interactionType = modifiedInteractionType;
+
+        if (targetMultiplicity == 1)
+            signal = n1_signal;
+        else
+            signal = n2_signal;
 
         if (containedEventsOnly && nuRecoContained == 0)
             continue;
@@ -223,6 +231,11 @@ void CreateInteractionTypeTable(TTree* pTree, int targetMultiplicity, bool conta
             interactionType = trueInteractionType;
         else 
             interactionType = modifiedInteractionType;
+
+        if (targetMultiplicity == 1)
+            signal = n1_signal;
+        else
+            signal = n2_signal;
 
         if (particleMultiplicity != targetMultiplicity)
             continue;
@@ -404,6 +417,8 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
     int trueNumberProtons;
     int trueNumberPhotons;
     int signal;
+    int n1_signal;
+    int n2_signal;
     int correctlyReconstructed;
 
     pTree->SetBranchAddress("NuRecoContained", &nuRecoContained);
@@ -414,7 +429,8 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
     pTree->SetBranchAddress("NumberTrueProtons", &trueNumberProtons);
     pTree->SetBranchAddress("NumberTrueMuons", &trueNumberMuons);
     pTree->SetBranchAddress("NumberTruePhotons", &trueNumberPhotons);
-    pTree->SetBranchAddress("Signal", &signal);
+    pTree->SetBranchAddress("N1_Signal", &n1_signal);
+    pTree->SetBranchAddress("N2_Signal", &n2_signal);
     pTree->SetBranchAddress("CorrectlyReconstructed", &correctlyReconstructed);
 
     std::map<int, int> nuanceCodeCount, trueMuonCount, trueProtonCount;
@@ -425,6 +441,11 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
     for (int i = 0; i < pTree->GetEntries(); i++) 
     {    
         pTree->GetEntry(i);
+
+        if (targetMultiplicity == 1)
+            signal = n1_signal;
+        else
+            signal = n2_signal;
 
         std::string interactionTypeString(ToString(static_cast<InteractionType>(interactionType)));
         std::string nCosmicRaysString(std::to_string(nCosmicRays)+"_CR");
@@ -487,17 +508,73 @@ void OtherInteractionAnalysis(TTree* pTree, int targetMultiplicity, bool onlyCon
 
 //------------------------------------------------------------------------------------------------------------------------------------------
 
-void NoReconstructableAnalysis(TTree* pTree, int targetMultiplicity, bool onlyContained)
+void InteractionTypeAnalysis(TTree* pTree, int targetMultiplicity, bool onlyContained, int targetInteractionType)
 {
+    /*
     //Energy distribution no_reco
-    std::vector<std::pair<std::string, int>> filterValues = {std::make_pair("ModifiedInteractionType", 182), std::make_pair("RecoNeutrinoNumberAssociatedParticles", targetMultiplicity), std::make_pair("NuRecoConatained", onlyContained)};
+    std::vector<std::pair<std::string, int>> filterValues = {std::make_pair("ModifiedInteractionType", targetInteractionType), std::make_pair("RecoNeutrinoNumberAssociatedParticles", targetMultiplicity), std::make_pair("NuRecoContained", onlyContained)};
 
     TH1F *pNoReconstructableEnergyDistribution = new TH1F("pNoReconstructableEnergyDistribution","", 100, 0.0, 500.0);
-    CreateFilteredHistogram(t1, pNoReconstructableEnergyDistribution, "TrueNeutrinoEnergy", filterValues, "float")
+    CreateFilteredHistogram(t1, pNoReconstructableEnergyDistribution, "TrueNeutrinoEnergy", filterValues, "float");
 
     //number of neutrons
     TH1F *pNoReconstructableNumberNeutrons = new TH1F("pNoReconstructableNumberNeutrons","", 6, 0, 5);
-    CreateFilteredHistogram(t1, pNoReconstructableNumberNeutrons, "TrueNumberNeutrons", filterValues, "int")
+    CreateFilteredHistogram(t1, pNoReconstructableNumberNeutrons, "TrueNumberNeutrons", filterValues, "int");
+    */
+
+    TH1F *pTrueEnergyDistribution = new TH1F("pEnergyDistribution","", 100, 0.0, 500.0);
+    TH1F *pNumberNeutrons = new TH1F("pNumberNeutrons","", 6, 0, 5);
+    TH1F *pEventNeutrinoHits = new TH1F("pEventNeutrinoHits","", 100, 0, 100);
+    TH1F *pPFONeutrinoHits = new TH1F("pPFONeutrinoHits","", 100, 0, 100);
+    TH1F *pNuRecoNeutrinoHits = new TH1F("pNuRecoNeutrinoHits","", 100, 0, 100);
+    TH1F *pOpeningAngle = new TH1F("pOpeningAngle","", 100, 0, 3.2);
+    TH1F *pLowestCharge = new TH1F("pLowestCharge","", 100, 0, 10000);
+
+    int numberTrueNeutrons;
+    int trueNeutrinoNumberInducedHits, pfoAllTrueNeutrinoHits, recoNuAllTrueNeutrinoHits;
+    int modifiedInteractionType, recoNeutrinoNumberAssociatedParticles, nuRecoContained;
+    float trueNeutrinoEnergy, openingAngle, lowestCharge;
+
+    pTree->SetBranchAddress("TrueNeutrinoEnergy", &trueNeutrinoEnergy);
+    pTree->SetBranchAddress("NumberTrueNeutrons", &numberTrueNeutrons);
+    pTree->SetBranchAddress("TrueNeutrinoNumberInducedHits", &trueNeutrinoNumberInducedHits);
+    pTree->SetBranchAddress("PfoAllTrueNeutrinoHits", &pfoAllTrueNeutrinoHits);
+    pTree->SetBranchAddress("RecoNuAllTrueNeutrinoHits", &recoNuAllTrueNeutrinoHits);
+    pTree->SetBranchAddress("ModifiedInteractionType", &modifiedInteractionType);
+    pTree->SetBranchAddress("RecoNeutrinoNumberAssociatedParticles", &recoNeutrinoNumberAssociatedParticles);
+    pTree->SetBranchAddress("NuRecoContained", &nuRecoContained);
+    pTree->SetBranchAddress("OpeningAngle", &openingAngle);
+    pTree->SetBranchAddress("LongestPfoMCLowestTenCmTotalCharge", &lowestCharge);
+
+    for (int i = 0; i < pTree->GetEntries(); i++) 
+    {    
+        pTree->GetEntry(i);
+
+        if (modifiedInteractionType != targetInteractionType || recoNeutrinoNumberAssociatedParticles != targetMultiplicity || nuRecoContained != static_cast<int>(onlyContained))
+            continue;
+
+        pTrueEnergyDistribution->Fill(trueNeutrinoEnergy);
+        pNumberNeutrons->Fill(numberTrueNeutrons);
+        pEventNeutrinoHits->Fill(trueNeutrinoNumberInducedHits);
+        pPFONeutrinoHits->Fill(pfoAllTrueNeutrinoHits);
+        pNuRecoNeutrinoHits->Fill(nuRecoContained);
+        pOpeningAngle->Fill(openingAngle);
+        pLowestCharge->Fill(lowestCharge);
+    }
+
+    std::vector<TH1F*> histogramVector = {pEventNeutrinoHits, pPFONeutrinoHits, pNuRecoNeutrinoHits};
+    std::vector<EColor> colourVector = {kRed, kBlue, kMagenta};
+    std::vector<std::string> legendVector = {"Event Neutrino Hits", "PFO Neutrino Hits", "#nu_{reco} Neutrino Hits"};
+
+    Draw(pTrueEnergyDistribution, kBlue, true, "TrueNeutrinoEnergy_InteractionType_" + ToString(static_cast<InteractionType>(targetInteractionType)), "True Neutrino Energy E_{#nu} (MeV)", "Fraction of Events", "Distribution of True Neutrino Energy E_{#nu} (MeV) for N=" + std::to_string(targetMultiplicity) + " " + ToString(static_cast<InteractionType>(targetInteractionType)) + " Events");
+
+    Draw(pNumberNeutrons, kBlue, true, "NumberNeutrons_InteractionType_" + ToString(static_cast<InteractionType>(targetInteractionType)), "Number True Neutrons", "Fraction of Events", "Distribution of True Number of Neutrons for N=" + std::to_string(targetMultiplicity) + " " + ToString(static_cast<InteractionType>(targetInteractionType)) + " Events");
+    
+    Draw(histogramVector, colourVector, legendVector, false, true, "TrueNeutrinoHitDistributions_InteractionType_" + ToString(static_cast<InteractionType>(targetInteractionType)), "Number of Neutrino Hits", "Number of Events", "Distributions of Neutrino Hits: N = " + std::to_string(targetMultiplicity) + " " + ToString(static_cast<InteractionType>(targetInteractionType)) + " Events");
+
+    Draw(pOpeningAngle, kBlue, true, "OpeningAngle_InteractionType_" + ToString(static_cast<InteractionType>(targetInteractionType)), "Opening Angle #phi (rad)", "Fraction of Events", "Distribution of Opening Angle #phi (rad) for N=" + std::to_string(targetMultiplicity) + " " + ToString(static_cast<InteractionType>(targetInteractionType)) + " Events");
+
+    Draw(pLowestCharge, kBlue, true, "LowestCharge_InteractionType_" + ToString(static_cast<InteractionType>(targetInteractionType)), "Lowest 10cm Charge Q_{low} (ADC)", "Fraction of Events", "Distribution of Lowest 10cm Charge Q_{low} (ADC) for N=" + std::to_string(targetMultiplicity) + " " + ToString(static_cast<InteractionType>(targetInteractionType)) + " Events");
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
@@ -543,14 +620,14 @@ void InteractionTypeTablesFinal(void)
 
     //std::vector<std::string> containmentDefinitions = {"NuRecoContained", "NuRecoEndpointsContained", "NuRecoVertexContained"};
     //CompareContainmentDefinitions(t1, targetMultiplicity, containmentDefinitions);
-    
-    OtherInteractionAnalysis(t1, targetMultiplicity, true);
-    //NoReconstructableAnalysis(t1, targetMultiplicity, true);
 
-    CompareCheatingConfigurations(targetMultiplicity, true);
+    OtherInteractionAnalysis(t1, targetMultiplicity, true);
+    InteractionTypeAnalysis(t1, targetMultiplicity, true, 181);
+
+    //CompareCheatingConfigurations(targetMultiplicity, true);
 
     std::vector<std::pair<std::string, float>> emptyBdtVector = {};
-    CreateInteractionTypeTable(t1, targetMultiplicity, true, "NuRecoContained", false, emptyBdtVector, std::make_pair(true, 181));
+    CreateInteractionTypeTable(t1, targetMultiplicity, true, "NuRecoContained", false, emptyBdtVector, std::make_pair(false, 181));
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------
